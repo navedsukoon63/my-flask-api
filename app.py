@@ -2,29 +2,28 @@ from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 from lxml import html
-from typing import Optional, Dict, Any
 import json
 
 app = Flask(__name__)
 
-# Flipkart CSS selectors dictionary
-FLIPKART_SELECTORS: Dict[str, str] = {
-    "title": "span.VU-ZEz",
-    "price": "div.Nx9bqj.CxhGGd",
-    "mrp": "div.yRaY8j.A6\\+E6v",
-    "discount": "div.UkUFwK.WW8yVX",
-    "image": "img._0DkuPH, div.Be4x5X.-PhTVc"
+# Updated Flipkart CSS selectors
+FLIPKART_SELECTORS = {
+    "title": "span._32l7gU",
+    "price": "div._30jeq3._16Jk6d",
+    "mrp": "div._3I9_wc._2p6-al",
+    "discount": "div._3Ay6Sb",
+    "image": "img._396cs4"
 }
 
-# Amazon XPath selectors dictionary (excluding image)
-AMAZON_XPATHS: Dict[str, str] = {
+# Amazon XPath selectors (unchanged)
+AMAZON_XPATHS = {
     "title": '//*[@id="productTitle"]',
     "discount": '//*[@id="corePriceDisplay_desktop_feature_div"]/div[1]/span[2]',
-    "price": '//*[@id="corePriceDisplay_desktop_feature_div"]/div[1]/span[3]/span[2]/span[2]',
-    "mrp": '//*[@id="corePriceDisplay_desktop_feature_div"]/div[2]/span/span[1]/span[2]/span/span[2]'
+    "price": '//*[@id="priceblock_ourprice"]',
+    "mrp": '//*[@id="priceblock_saleprice"]'
 }
 
-def detect_platform(url: Optional[str]) -> Optional[str]:
+def detect_platform(url):
     if not url:
         return None
     if "flipkart.com" in url:
@@ -34,7 +33,7 @@ def detect_platform(url: Optional[str]) -> Optional[str]:
     else:
         return None
 
-def scrape_flipkart(soup: BeautifulSoup) -> Dict[str, str]:
+def scrape_flipkart(soup):
     result = {}
     for key, selector in FLIPKART_SELECTORS.items():
         el = soup.select_one(selector)
@@ -52,7 +51,7 @@ def scrape_flipkart(soup: BeautifulSoup) -> Dict[str, str]:
             result[key] = ""
     return result
 
-def scrape_amazon(tree: html.HtmlElement) -> Dict[str, str]:
+def scrape_amazon(tree):
     result = {}
     for key in ["title", "discount", "price", "mrp"]:
         try:
@@ -70,7 +69,6 @@ def scrape_amazon(tree: html.HtmlElement) -> Dict[str, str]:
 
     image = ""
     try:
-        # Try main image src attribute
         img_src = tree.xpath("//img[@id='landingImage']/@src")
         if img_src:
             image = img_src[0]
@@ -79,7 +77,6 @@ def scrape_amazon(tree: html.HtmlElement) -> Dict[str, str]:
 
     if not image:
         try:
-            # fallback to data-old-hires attribute
             data_old_hi = tree.xpath("//div[@id='imgTagWrapperId']/img/@data-old-hires")
             if data_old_hi:
                 image = data_old_hi[0]
@@ -88,12 +85,11 @@ def scrape_amazon(tree: html.HtmlElement) -> Dict[str, str]:
 
     if not image:
         try:
-            # fallback to JSON inside data-a-dynamic-image attribute
             dynamic_image_json = tree.xpath("string(//div[@id='imgTagWrapperId']/img/@data-a-dynamic-image)")
             if dynamic_image_json:
                 data = json.loads(dynamic_image_json)
                 if isinstance(data, dict) and data.keys():
-                    image = list(data.keys())[0]  # first image URL
+                    image = list(data.keys())[0]
         except:
             pass
 
@@ -106,7 +102,7 @@ def home():
 
 @app.route('/scrape', methods=['GET'])
 def scrape():
-    url: Optional[str] = request.args.get('url')
+    url = request.args.get('url')
     if not url:
         return jsonify({"error": "URL missing"}), 400
 
@@ -133,7 +129,6 @@ def scrape():
             return jsonify({"error": "Platform not supported"}), 400
 
         return jsonify(data)
-
     except Exception as e:
         return jsonify({"error": f"Scraping failed: {str(e)}"}), 500
 
