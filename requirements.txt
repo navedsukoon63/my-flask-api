@@ -5,3 +5,5 @@ requests
 lxml
 requests
 gunicorn
+selenium
+webdriver-manager
